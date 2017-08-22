@@ -45,14 +45,16 @@
 /*---------------------------------------------------------------------------*/
 static struct etimer et_hello;
 static struct etimer et_blink;
+static struct etimer et_proc3;
 static uint16_t count;
 
 /*---------------------------------------------------------------------------*/
 PROCESS(hello_world_process, "Hello world process");
 PROCESS(blink_process, "LED blink process");
+PROCESS(proc3_process, "LUIS process");
 
 /*---------------------------------------------------------------------------*/
-AUTOSTART_PROCESSES(&blink_process);
+AUTOSTART_PROCESSES(&hello_world_process, &blink_process, &proc3_process);
 /*---------------------------------------------------------------------------*/
 PROCESS_THREAD(hello_world_process, ev, data)
 {
@@ -84,7 +86,7 @@ PROCESS_THREAD(blink_process, ev, data)
   etimer_set(&et_blink, 2*CLOCK_SECOND);
   PROCESS_WAIT_EVENT_UNTIL(ev == PROCESS_EVENT_TIMER);
 
-  etimer_set(&et_blink, 5*CLOCK_SECOND);
+  etimer_set(&et_blink, 2*CLOCK_SECOND);
   while(1) {
     PROCESS_WAIT_EVENT();
     if(ev == PROCESS_EVENT_TIMER){
@@ -99,5 +101,25 @@ PROCESS_THREAD(blink_process, ev, data)
 }
 /*---------------------------------------------------------------------------*/
 
+PROCESS_THREAD(proc3_process, ev, data)
+{
+  PROCESS_BEGIN();
+
+  etimer_set(&et_proc3, 1*CLOCK_SECOND);
+  PROCESS_WAIT_EVENT_UNTIL(ev == PROCESS_EVENT_TIMER);
+
+  etimer_set(&et_proc3, CLOCK_SECOND * 1);
+  count = 0;
+  while(1) {
+    PROCESS_WAIT_EVENT();
+    if(ev == PROCESS_EVENT_TIMER){
+        etimer_reset(&et_proc3);
+        printf("LUIS: PULA PULA PULA!\n");
+    }
+  }
+
+  PROCESS_END();
+}
+/*---------------------------------------------------------------------------*/
 
 
