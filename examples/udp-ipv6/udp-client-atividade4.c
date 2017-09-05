@@ -39,7 +39,7 @@
 #define DEBUG DEBUG_PRINT
 #include "net/ip/uip-debug.h"
 
-#define SEND_INTERVAL		15 * CLOCK_SECOND
+#define SEND_INTERVAL		5 * CLOCK_SECOND
 #define MAX_PAYLOAD_LEN		40
 #define CONN_PORT     8802
 static char buf[MAX_PAYLOAD_LEN];
@@ -49,6 +49,11 @@ static struct uip_udp_conn *client_conn;
 #define UIP_UDP_BUF  ((struct uip_udp_hdr *)&uip_buf[UIP_LLH_LEN + UIP_IPH_LEN])
 #define UIP_IP_BUF   ((struct uip_ip_hdr *)&uip_buf[UIP_LLH_LEN])
 
+#define LED_TOGGLE_REQUEST (0x79)
+#define LED_SET_STATE (0x7A)
+#define LED_GET_STATE (0x7B)
+#define LED_STATE (0x7C)
+
 /*---------------------------------------------------------------------------*/
 PROCESS(udp_client_process, "UDP client process");
 AUTOSTART_PROCESSES(&resolv_process,&udp_client_process);
@@ -56,26 +61,62 @@ AUTOSTART_PROCESSES(&resolv_process,&udp_client_process);
 static void
 tcpip_handler(void)
 {
-    char *dados;
+   if(uip_newdata()) {
+        char *dados = ((char*)uip_appdata);
+        PRINTF("Recebidos %d bytes \n", uip_datalen());
+        switch(dados[0])
+       {
+       case LED_SET_STATE:
+       {
 
-    if(uip_newdata()) {
-        dados = uip_appdata;
-        dados[uip_datalen()] = '\0';
-        printf("Response from the server: '%s'\n", dados);
+        leds_off(LEDS_ALL);
+        leds_set(dados[1]);
+
+        char data[2] = {LED_STATE, leds_get()};
+
+        uip_ipaddr_copy(&client_conn->ripaddr,&UIP_IP_BUF->srcipaddr);
+        client_conn->rport=UIP_UDP_BUF->destport;
+
+        PRINTF("Enviando e copara[");
+        PRINT6ADDR(&client_conn->ripaddr);
+        PRINTF("]:%u\n",UIP_HTONS(client_conn->rport));
+
+        uip_udp_packet_send(client_conn, &data, 2*sizeof(char));
+        break;
+        }
+    default:
+    {
+     PRINTF ("ERRADO \n");
+     break;
     }
+    }
+
+
+    }
+
+
+    return;
+
+
 }
 /*---------------------------------------------------------------------------*/
 static void
 timeout_handler(void)
 {
-    char payload;
-
+    char payload = LED_TOGGLE_REQUEST;
 
     if(uip_ds6_get_global(ADDR_PREFERRED) == NULL) {
       PRINTF("Aguardando auto-configuracao de IP\n");
       return;
     }
-    uip_udp_packet_send(client_conn, buf, strlen(buf));
+
+
+
+    PRINTF("Cliente para[");
+    PRINT6ADDR(&client_conn->ripaddr);
+    PRINTF("]:%u \n", UIP_HTONS(client_conn->rport));
+
+    uip_udp_packet_send(client_conn, &payload, sizeof(char));
 }
 /*---------------------------------------------------------------------------*/
 static void
@@ -187,11 +228,13 @@ PROCESS_THREAD(udp_client_process, ev, data)
     PROCESS_YIELD();
     if(etimer_expired(&et)) {
       timeout_handler();
+
       etimer_restart(&et);
     } else if(ev == tcpip_event) {
       tcpip_handler();
     }
   }
+
 
   PROCESS_END();
 }

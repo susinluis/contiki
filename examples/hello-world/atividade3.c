@@ -18,7 +18,7 @@
  * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
  * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
  * ARE DISCLAIMED.  IN NO EVENT SHALL THE INSTITUTE OR CONTRIBUTORS BE LIABLE
- * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+ *  FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
  * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS
  * OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
  * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
@@ -41,20 +41,24 @@
 
 #include <stdio.h> /* For printf() */
 #include "dev/leds.h"
+#define LED_PING_EVENT (44)
+#define LED_PONG_EVENT (45)
 
 /*---------------------------------------------------------------------------*/
 static struct etimer et_hello;
 static struct etimer et_blink;
 static struct etimer et_proc3;
+static struct etimer et_pong;
 static uint16_t count;
 
 /*---------------------------------------------------------------------------*/
 PROCESS(hello_world_process, "Hello world process");
 PROCESS(blink_process, "LED blink process");
 PROCESS(proc3_process, "LUIS process");
+PROCESS(pong_process, "PONG process");
 
 /*---------------------------------------------------------------------------*/
-AUTOSTART_PROCESSES(&hello_world_process, &blink_process, &proc3_process);
+AUTOSTART_PROCESSES(&hello_world_process, &blink_process, &proc3_process, &pong_process);
 /*---------------------------------------------------------------------------*/
 PROCESS_THREAD(hello_world_process, ev, data)
 {
@@ -71,13 +75,18 @@ PROCESS_THREAD(hello_world_process, ev, data)
     if(ev == PROCESS_EVENT_TIMER){
         leds_toggle(LEDS_RED);
         etimer_reset(&et_hello);
-        printf("HELLO: Piscando o LED vermelho!\n");
+       /*printf("HELLO: Piscando o LED vermelho!\n");*/
+        process_post(&pong_process,LED_PING_EVENT,(void*)(&hello_world_process));
+        printf("PING1\n");
     }
-  }
-
+    else if (ev == LED_PONG_EVENT){
+            printf("helloworld recebeu o pong\n");
+        }
+ }
   PROCESS_END();
 }
 /*---------------------------------------------------------------------------*/
+
 PROCESS_THREAD(blink_process, ev, data)
 {
   PROCESS_BEGIN();
@@ -92,9 +101,13 @@ PROCESS_THREAD(blink_process, ev, data)
     if(ev == PROCESS_EVENT_TIMER){
         leds_toggle(LEDS_GREEN);
         etimer_reset(&et_blink);
-        printf("BLINK: Piscando o LED verde!\n");
+        /*printf("BLINK: Piscando o LED verde!\n");*/
+        process_post(&pong_process,LED_PING_EVENT,(void*)(&blink_process));
+        printf("PING2\n");
     }
-
+    else if (ev == LED_PONG_EVENT){
+            printf("blinkprocess recebeu o pong\n");
+        }
   }
 
   PROCESS_END();
@@ -114,12 +127,37 @@ PROCESS_THREAD(proc3_process, ev, data)
     PROCESS_WAIT_EVENT();
     if(ev == PROCESS_EVENT_TIMER){
         etimer_reset(&et_proc3);
-        printf("LUIS: PULA PULA PULA!\n");
+        /* printf("LUIS: PULA PULA PULA!\n");*/
+        process_post(&pong_process,LED_PING_EVENT,(void*)(&proc3_process));
+        printf("PING3\n");
+        }
+    else if (ev == LED_PONG_EVENT){
+        printf("proc3 recebeu o pong\n");
     }
   }
 
   PROCESS_END();
 }
 /*---------------------------------------------------------------------------*/
+PROCESS_THREAD(pong_process, ev, data)
+{
+  PROCESS_BEGIN();
 
+  etimer_set(&et_pong, 5*CLOCK_SECOND);
+  PROCESS_WAIT_EVENT_UNTIL(ev == PROCESS_EVENT_TIMER);
+
+  count = 0;
+  while(1) {
+    PROCESS_WAIT_EVENT();
+    if(ev == LED_PING_EVENT){
+        leds_toggle(LEDS_RED);
+        etimer_reset(&et_pong);
+        /*printf("PONG: Piscando o LED vermelho!\n");*/
+        process_post((struct process*)data,LED_PONG_EVENT,NULL);
+        printf("PONG: recebido ping do processo %s\n",((struct process*)data)->name);
+    }
+  }
+
+  PROCESS_END();
+}
 
